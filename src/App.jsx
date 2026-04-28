@@ -301,7 +301,7 @@ function App() {
                             },
                           }}
                         >
-                          <span className="cap-i">I</span> love you
+                          Саша разблокируй в тг
                         </motion.span>
                       </motion.span>
                     </span>
