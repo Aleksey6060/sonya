@@ -6,6 +6,7 @@ function App() {
   const [started, setStarted] = useState(false)
   const [visibleCount, setVisibleCount] = useState(0)
   const canvasRef = useRef(null)
+  const heartsCanvasRef = useRef(null)
   const [viewport, setViewport] = useState(() => ({
     w: window.visualViewport?.width ? Math.round(window.visualViewport.width) : window.innerWidth,
     h: window.visualViewport?.height ? Math.round(window.visualViewport.height) : window.innerHeight,
@@ -167,6 +168,129 @@ function App() {
     }
   }, [])
 
+  // Heart particles following the cursor
+  useEffect(() => {
+    const canvas = heartsCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    let rafId = 0
+    let w = 0
+    let h = 0
+    const dpr = Math.min(window.devicePixelRatio || 1, 2)
+
+    const resize = () => {
+      w = window.innerWidth
+      h = window.innerHeight
+      canvas.width = w * dpr
+      canvas.height = h * dpr
+      canvas.style.width = w + 'px'
+      canvas.style.height = h + 'px'
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    }
+    resize()
+    window.addEventListener('resize', resize, { passive: true })
+
+    const hearts = []
+    const palette = [
+      '#ff4fd8', '#ff8ff1', '#c77dff', '#ff6ec7', '#e056fd',
+    ]
+
+    const drawHeart = (x, y, size, color, alpha, rotation) => {
+      ctx.save()
+      ctx.translate(x, y)
+      ctx.rotate(rotation)
+      ctx.scale(size, size)
+      ctx.globalAlpha = alpha
+      ctx.fillStyle = color
+      ctx.shadowColor = color
+      ctx.shadowBlur = 18
+      ctx.beginPath()
+      // Heart path (centered at 0,0)
+      ctx.moveTo(0, 0.3)
+      ctx.bezierCurveTo(-0.5, -0.3, -1, 0.1, 0, 0.85)
+      ctx.bezierCurveTo(1, 0.1, 0.5, -0.3, 0, 0.3)
+      ctx.closePath()
+      ctx.fill()
+      ctx.restore()
+    }
+
+    const mouse = { x: w / 2, y: h / 2, lastX: w / 2, lastY: h / 2, moved: false }
+
+    const onMove = (e) => {
+      mouse.x = e.clientX
+      mouse.y = e.clientY
+      mouse.moved = true
+    }
+    const onTouch = (e) => {
+      const t = e.touches && e.touches[0]
+      if (!t) return
+      mouse.x = t.clientX
+      mouse.y = t.clientY
+      mouse.moved = true
+    }
+    window.addEventListener('mousemove', onMove, { passive: true })
+    window.addEventListener('touchmove', onTouch, { passive: true })
+
+    let spawnAccum = 0
+    const loop = () => {
+      ctx.clearRect(0, 0, w, h)
+
+      // Spawn hearts at cursor when it moves
+      if (mouse.moved) {
+        const dx = mouse.x - mouse.lastX
+        const dy = mouse.y - mouse.lastY
+        const dist = Math.hypot(dx, dy)
+        spawnAccum += dist
+        const spawnInterval = 18
+        while (spawnAccum >= spawnInterval) {
+          spawnAccum -= spawnInterval
+          const t = spawnAccum / Math.max(dist, 1)
+          hearts.push({
+            x: mouse.lastX + dx * t + (Math.random() - 0.5) * 6,
+            y: mouse.lastY + dy * t + (Math.random() - 0.5) * 6,
+            vx: (Math.random() - 0.5) * 0.6,
+            vy: -0.4 - Math.random() * 1.1,
+            size: 0.18 + Math.random() * 0.34,
+            color: palette[Math.floor(Math.random() * palette.length)],
+            life: 1,
+            decay: 0.006 + Math.random() * 0.012,
+            rotation: (Math.random() - 0.5) * 0.6,
+            rotSpeed: (Math.random() - 0.5) * 0.04,
+          })
+        }
+        mouse.lastX = mouse.x
+        mouse.lastY = mouse.y
+        mouse.moved = false
+      } else {
+        spawnAccum = 0
+      }
+
+      for (let i = hearts.length - 1; i >= 0; i--) {
+        const hrt = hearts[i]
+        hrt.x += hrt.vx
+        hrt.y += hrt.vy
+        hrt.vy -= 0.008 // gentle float up
+        hrt.rotation += hrt.rotSpeed
+        hrt.life -= hrt.decay
+        if (hrt.life <= 0) {
+          hearts.splice(i, 1)
+          continue
+        }
+        drawHeart(hrt.x, hrt.y, hrt.size * 22, hrt.color, hrt.life, hrt.rotation)
+      }
+
+      rafId = window.requestAnimationFrame(loop)
+    }
+    rafId = window.requestAnimationFrame(loop)
+
+    return () => {
+      window.cancelAnimationFrame(rafId)
+      window.removeEventListener('resize', resize)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('touchmove', onTouch)
+    }
+  }, [])
+
   return (
     <div className="relative min-h-screen bg-black overflow-hidden">
       <canvas
@@ -174,6 +298,12 @@ function App() {
         aria-hidden
         className="fixed inset-0 h-[100svh] w-[100svw]"
         style={{ pointerEvents: 'none', opacity: 1, zIndex: 0, display: 'block' }}
+      />
+      <canvas
+        ref={heartsCanvasRef}
+        aria-hidden
+        className="fixed inset-0 h-[100svh] w-[100svw]"
+        style={{ pointerEvents: 'none', opacity: 1, zIndex: 1, display: 'block' }}
       />
 
       <div className="relative z-10 h-[100svh] w-[100svw]">
@@ -308,6 +438,39 @@ function App() {
                   )
                 })
               : null}
+          </AnimatePresence>
+
+          {/* Name Соня in the center of the heart */}
+          <AnimatePresence>
+            {visibleCount >= points.length && (
+              <motion.div
+                key="sonya-name"
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none select-none"
+                style={{ zIndex: 20 }}
+                initial={{ opacity: 0, scale: 0.7, filter: 'blur(24px)' }}
+                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, scale: 0.9, filter: 'blur(12px)' }}
+                transition={{ duration: 1.6, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
+              >
+                <motion.h1
+                  className="sonya-name whitespace-nowrap"
+                  animate={{
+                    backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'],
+                    textShadow: [
+                      '0 0 18px rgba(255,79,216,0.55), 0 0 40px rgba(199,125,255,0.35)',
+                      '0 0 28px rgba(255,79,216,0.8), 0 0 70px rgba(199,125,255,0.55)',
+                      '0 0 18px rgba(255,79,216,0.55), 0 0 40px rgba(199,125,255,0.35)',
+                    ],
+                  }}
+                  transition={{
+                    backgroundPosition: { duration: 8, repeat: Infinity, ease: 'linear' },
+                    textShadow: { duration: 4, repeat: Infinity, ease: 'easeInOut' },
+                  }}
+                >
+                  Соня
+                </motion.h1>
+              </motion.div>
+            )}
           </AnimatePresence>
       </div>
     </div>
