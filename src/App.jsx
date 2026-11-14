@@ -12,7 +12,7 @@ function App() {
     h: window.visualViewport?.height ? Math.round(window.visualViewport.height) : window.innerHeight,
   }))
 
-  const points = useMemo(() => {
+  const { points, namePos, nameWidth } = useMemo(() => {
     const count = 48
     const raw = Array.from({ length: count }, (_, i) => {
       const t = (Math.PI * 2 * i) / count
@@ -56,11 +56,34 @@ function App() {
 
     const scale = Math.min(availW / heartW, availH / heartH) * sizeBoost * zoomLike
 
-    return raw.map(({ x, y, seed }) => {
+    const mapped = raw.map(({ x, y, seed }) => {
       const dx = (x - cx) * scale
       const dy = -(y - cy) * scale
       return { left: w / 2 + dx, top: h / 2 + dy, seed }
     })
+
+    // Area centroid of the heart polygon — the true "inside" center for the name
+    let crossSum = 0
+    let cxAcc = 0
+    let cyAcc = 0
+    for (let i = 0; i < mapped.length; i++) {
+      const a = mapped[i]
+      const b = mapped[(i + 1) % mapped.length]
+      const cr = a.left * b.top - b.left * a.top
+      crossSum += cr
+      cxAcc += (a.left + b.left) * cr
+      cyAcc += (a.top + b.top) * cr
+    }
+    const centroid =
+      crossSum !== 0
+        ? { left: cxAcc / (3 * crossSum), top: cyAcc / (3 * crossSum) }
+        : { left: w / 2, top: h / 2 }
+
+    return {
+      points: mapped,
+      namePos: centroid,
+      nameWidth: (maxX - minX) * scale * 0.72,
+    }
   }, [viewport.h, viewport.w])
 
   useEffect(() => {
@@ -168,7 +191,7 @@ function App() {
     }
   }, [])
 
-  // Heart particles following the cursor
+  // Heart particles following the cursor + autonomous idle pattern
   useEffect(() => {
     const canvas = heartsCanvasRef.current
     if (!canvas) return
@@ -214,12 +237,35 @@ function App() {
       ctx.restore()
     }
 
-    const mouse = { x: w / 2, y: h / 2, lastX: w / 2, lastY: h / 2, moved: false }
+    const spawnHeart = (x, y, speedScale = 1, color = null, sizeScale = 1) => {
+      hearts.push({
+        x: x + (Math.random() - 0.5) * 6,
+        y: y + (Math.random() - 0.5) * 6,
+        vx: (Math.random() - 0.5) * 0.6 * speedScale,
+        vy: (-0.4 - Math.random() * 1.1) * speedScale,
+        size: (0.18 + Math.random() * 0.34) * sizeScale,
+        color: color || palette[Math.floor(Math.random() * palette.length)],
+        life: 1,
+        decay: 0.006 + Math.random() * 0.012,
+        rotation: (Math.random() - 0.5) * 0.6,
+        rotSpeed: (Math.random() - 0.5) * 0.04,
+      })
+    }
+
+    const mouse = {
+      x: w / 2,
+      y: h / 2,
+      lastX: w / 2,
+      lastY: h / 2,
+      moved: false,
+      lastMoveTime: performance.now(),
+    }
 
     const onMove = (e) => {
       mouse.x = e.clientX
       mouse.y = e.clientY
       mouse.moved = true
+      mouse.lastMoveTime = performance.now()
     }
     const onTouch = (e) => {
       const t = e.touches && e.touches[0]
@@ -227,16 +273,30 @@ function App() {
       mouse.x = t.clientX
       mouse.y = t.clientY
       mouse.moved = true
+      mouse.lastMoveTime = performance.now()
     }
     window.addEventListener('mousemove', onMove, { passive: true })
     window.addEventListener('touchmove', onTouch, { passive: true })
 
     let spawnAccum = 0
+    const IDLE_THRESHOLD = 2200 // ms before auto mode kicks in
+
+    // Multiple wandering emitters — each follows its own drifting Lissajous path
+    const wanderers = [
+      { speed: 0.012, ax: 0.30, ay: 0.20, fx: 1.0, fy: 1.5, every: 1, size: 0.95, color: '#ff4fd8' },
+      { speed: 0.009, ax: 0.34, ay: 0.26, fx: 1.0, fy: 2.0, every: 2, size: 0.85, color: '#c77dff' },
+      { speed: 0.015, ax: 0.26, ay: 0.30, fx: 2.0, fy: 1.0, every: 2, size: 0.8, color: '#ff8ff1' },
+      { speed: 0.007, ax: 0.38, ay: 0.16, fx: 3.0, fy: 2.0, every: 3, size: 1.0, color: '#e056fd' },
+      { speed: 0.011, ax: 0.20, ay: 0.32, fx: 1.5, fy: 3.0, every: 3, size: 0.75, color: '#ff6ec7' },
+      { speed: 0.016, ax: 0.30, ay: 0.24, fx: 2.0, fy: 3.0, every: 3, size: 0.7, color: '#ffb3ec' },
+    ].map((wr, i) => ({ ...wr, phase: (i * Math.PI) / 3, acc: 0 }))
+
     const loop = () => {
       ctx.clearRect(0, 0, w, h)
+      const now = performance.now()
+      const idle = now - mouse.lastMoveTime > IDLE_THRESHOLD
 
-      // Spawn hearts at cursor when it moves
-      if (mouse.moved) {
+      if (mouse.moved && !idle) {
         const dx = mouse.x - mouse.lastX
         const dy = mouse.y - mouse.lastY
         const dist = Math.hypot(dx, dy)
@@ -245,24 +305,29 @@ function App() {
         while (spawnAccum >= spawnInterval) {
           spawnAccum -= spawnInterval
           const t = spawnAccum / Math.max(dist, 1)
-          hearts.push({
-            x: mouse.lastX + dx * t + (Math.random() - 0.5) * 6,
-            y: mouse.lastY + dy * t + (Math.random() - 0.5) * 6,
-            vx: (Math.random() - 0.5) * 0.6,
-            vy: -0.4 - Math.random() * 1.1,
-            size: 0.18 + Math.random() * 0.34,
-            color: palette[Math.floor(Math.random() * palette.length)],
-            life: 1,
-            decay: 0.006 + Math.random() * 0.012,
-            rotation: (Math.random() - 0.5) * 0.6,
-            rotSpeed: (Math.random() - 0.5) * 0.04,
-          })
+          spawnHeart(mouse.lastX + dx * t, mouse.lastY + dy * t)
         }
         mouse.lastX = mouse.x
         mouse.lastY = mouse.y
         mouse.moved = false
       } else {
         spawnAccum = 0
+      }
+
+      // Autonomous mode: several hearts drifting along flowing Lissajous curves
+      if (idle) {
+        const cx = w / 2
+        const cy = h / 2
+        const base = Math.min(w, h)
+        for (const wr of wanderers) {
+          wr.phase += wr.speed
+          wr.acc += 1
+          if (wr.acc < wr.every) continue
+          wr.acc = 0
+          const nx = cx + Math.sin(wr.phase * wr.fx) * base * wr.ax
+          const ny = cy + Math.sin(wr.phase * wr.fy) * base * wr.ay
+          spawnHeart(nx, ny, 0.85, wr.color, wr.size)
+        }
       }
 
       for (let i = hearts.length - 1; i >= 0; i--) {
@@ -353,7 +418,7 @@ function App() {
                         }}
                       >
                         <motion.span
-                          className="neon-text inline-block text-[clamp(11px,3.2vw,22px)] sm:text-[clamp(14px,2.6vw,34px)]"
+                          className="neon-text inline-block text-[clamp(9.4px,2.72vw,18.7px)] sm:text-[clamp(11.9px,2.21vw,28.9px)]"
                           initial={{ backgroundPosition: '0% 50%' }}
                           animate={{
                             opacity: rebirthEnabled
@@ -440,35 +505,75 @@ function App() {
               : null}
           </AnimatePresence>
 
-          {/* Name Соня in the center of the heart */}
+          {/* Name Соня in the center of the heart — hand-drawn SVG */}
           <AnimatePresence>
             {visibleCount >= points.length && (
               <motion.div
                 key="sonya-name"
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none select-none"
-                style={{ zIndex: 20 }}
-                initial={{ opacity: 0, scale: 0.7, filter: 'blur(24px)' }}
-                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                exit={{ opacity: 0, scale: 0.9, filter: 'blur(12px)' }}
-                transition={{ duration: 1.6, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
+                className="absolute pointer-events-none select-none"
+                style={{ zIndex: 20, left: `${namePos.left}px`, top: `${namePos.top}px` }}
+                initial={{ opacity: 0, scale: 0.85, x: '-50%', y: '-50%', filter: 'blur(20px)' }}
+                animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%', filter: 'blur(0px)' }}
+                exit={{ opacity: 0, scale: 0.95, x: '-50%', y: '-50%', filter: 'blur(12px)' }}
+                transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
               >
-                <motion.h1
-                  className="sonya-name whitespace-nowrap"
-                  animate={{
-                    backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'],
-                    textShadow: [
-                      '0 0 18px rgba(255,79,216,0.55), 0 0 40px rgba(199,125,255,0.35)',
-                      '0 0 28px rgba(255,79,216,0.8), 0 0 70px rgba(199,125,255,0.55)',
-                      '0 0 18px rgba(255,79,216,0.55), 0 0 40px rgba(199,125,255,0.35)',
-                    ],
-                  }}
-                  transition={{
-                    backgroundPosition: { duration: 8, repeat: Infinity, ease: 'linear' },
-                    textShadow: { duration: 4, repeat: Infinity, ease: 'easeInOut' },
-                  }}
+                <svg
+                  className="sonya-svg"
+                  viewBox="0 0 640 300"
+                  width={Math.round(nameWidth)}
+                  height="auto"
+                  style={{ overflow: 'visible' }}
                 >
-                  Соня
-                </motion.h1>
+                  <defs>
+                    <linearGradient id="sonyaGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#ff4fd8" />
+                      <stop offset="35%" stopColor="#ff8ff1" />
+                      <stop offset="65%" stopColor="#c77dff" />
+                      <stop offset="100%" stopColor="#ff4fd8" />
+                    </linearGradient>
+                    <filter id="sonyaGlow" x="-30%" y="-30%" width="160%" height="160%">
+                      <feGaussianBlur stdDeviation="6" result="blur1" />
+                      <feGaussianBlur stdDeviation="14" result="blur2" />
+                      <feMerge>
+                        <feMergeNode in="blur2" />
+                        <feMergeNode in="blur1" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                  </defs>
+                  <motion.text
+                    x="50%"
+                    y="50%"
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fontFamily="'Marck Script', 'Caveat', cursive"
+                    fontSize="210"
+                    fill="url(#sonyaGrad)"
+                    stroke="url(#sonyaGrad)"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    filter="url(#sonyaGlow)"
+                    style={{ paintOrder: 'stroke fill' }}
+                    initial={{ strokeDasharray: 2400, strokeDashoffset: 2400, fillOpacity: 0 }}
+                    animate={{
+                      strokeDashoffset: 0,
+                      fillOpacity: [0, 0, 1],
+                      strokeOpacity: [1, 1, 0.85],
+                    }}
+                    transition={{
+                      strokeDashoffset: { duration: 2.6, ease: [0.65, 0, 0.35, 1], delay: 0.6 },
+                      fillOpacity: {
+                        duration: 1.2,
+                        times: [0, 0.85, 1],
+                        delay: 0.6,
+                      },
+                      strokeOpacity: { duration: 1.2, times: [0, 0.85, 1], delay: 0.6 },
+                    }}
+                  >
+                    Соня
+                  </motion.text>
+                </svg>
               </motion.div>
             )}
           </AnimatePresence>
