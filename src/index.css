@@ -6,10 +6,20 @@ html,
 body,
 #root {
   height: 100%;
+  overflow: hidden;
+}
+
+html {
+  overscroll-behavior: none;
 }
 
 body {
   margin: 0;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
   background: #000;
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial,
     'Noto Sans', 'Liberation Sans', sans-serif;

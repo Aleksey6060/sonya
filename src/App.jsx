@@ -369,7 +369,7 @@ function App() {
   }, [])
 
   return (
-    <div className="relative min-h-screen bg-black overflow-hidden">
+    <div className="relative h-[100svh] w-[100svw] overflow-hidden bg-black">
       <canvas
         ref={canvasRef}
         aria-hidden
