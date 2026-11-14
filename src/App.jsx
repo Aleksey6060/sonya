@@ -281,14 +281,26 @@ function App() {
     let spawnAccum = 0
     const IDLE_THRESHOLD = 2200 // ms before auto mode kicks in
 
-    // Multiple wandering emitters — each follows its own drifting Lissajous path
+    // Multiple wandering emitters — each drifts along its own Lissajous path,
+    // anchored to a different spot (center, edges, corners) so hearts roam everywhere.
     const wanderers = [
-      { speed: 0.012, ax: 0.30, ay: 0.20, fx: 1.0, fy: 1.5, every: 1, size: 0.95, color: '#ff4fd8' },
-      { speed: 0.009, ax: 0.34, ay: 0.26, fx: 1.0, fy: 2.0, every: 2, size: 0.85, color: '#c77dff' },
-      { speed: 0.015, ax: 0.26, ay: 0.30, fx: 2.0, fy: 1.0, every: 2, size: 0.8, color: '#ff8ff1' },
-      { speed: 0.007, ax: 0.38, ay: 0.16, fx: 3.0, fy: 2.0, every: 3, size: 1.0, color: '#e056fd' },
-      { speed: 0.011, ax: 0.20, ay: 0.32, fx: 1.5, fy: 3.0, every: 3, size: 0.75, color: '#ff6ec7' },
-      { speed: 0.016, ax: 0.30, ay: 0.24, fx: 2.0, fy: 3.0, every: 3, size: 0.7, color: '#ffb3ec' },
+      // center
+      { ox: 0.0, oy: 0.0, speed: 0.012, ax: 0.14, ay: 0.10, fx: 1.0, fy: 1.5, every: 3, size: 0.95, color: '#ff4fd8' },
+      { ox: 0.0, oy: 0.0, speed: 0.009, ax: 0.12, ay: 0.14, fx: 1.0, fy: 2.0, every: 3, size: 0.85, color: '#c77dff' },
+      // corners
+      { ox: -0.34, oy: -0.30, speed: 0.013, ax: 0.10, ay: 0.08, fx: 1.0, fy: 1.0, every: 3, size: 0.9, color: '#ff8ff1' },
+      { ox: 0.34, oy: -0.30, speed: 0.011, ax: 0.10, ay: 0.08, fx: 1.0, fy: 2.0, every: 3, size: 0.85, color: '#e056fd' },
+      { ox: -0.34, oy: 0.30, speed: 0.014, ax: 0.10, ay: 0.08, fx: 2.0, fy: 1.0, every: 3, size: 0.8, color: '#ff6ec7' },
+      { ox: 0.34, oy: 0.30, speed: 0.010, ax: 0.10, ay: 0.08, fx: 3.0, fy: 2.0, every: 3, size: 0.95, color: '#ffb3ec' },
+      // left / right edges
+      { ox: -0.42, oy: 0.0, speed: 0.012, ax: 0.06, ay: 0.16, fx: 1.0, fy: 2.0, every: 3, size: 0.85, color: '#ff4fd8' },
+      { ox: 0.42, oy: 0.0, speed: 0.015, ax: 0.06, ay: 0.16, fx: 2.0, fy: 1.0, every: 3, size: 0.8, color: '#c77dff' },
+      // top / bottom edges
+      { ox: 0.0, oy: -0.40, speed: 0.013, ax: 0.18, ay: 0.06, fx: 1.5, fy: 1.0, every: 3, size: 0.9, color: '#ff8ff1' },
+      { ox: 0.0, oy: 0.40, speed: 0.011, ax: 0.18, ay: 0.06, fx: 1.0, fy: 1.5, every: 3, size: 0.75, color: '#e056fd' },
+      // extra diagonal drifters
+      { ox: -0.24, oy: -0.10, speed: 0.016, ax: 0.12, ay: 0.10, fx: 2.0, fy: 3.0, every: 4, size: 0.85, color: '#ffd6f5' },
+      { ox: 0.24, oy: 0.10, speed: 0.014, ax: 0.12, ay: 0.10, fx: 3.0, fy: 2.0, every: 4, size: 0.8, color: '#ff6ec7' },
     ].map((wr, i) => ({ ...wr, phase: (i * Math.PI) / 3, acc: 0 }))
 
     const loop = () => {
@@ -324,9 +336,9 @@ function App() {
           wr.acc += 1
           if (wr.acc < wr.every) continue
           wr.acc = 0
-          const nx = cx + Math.sin(wr.phase * wr.fx) * base * wr.ax
-          const ny = cy + Math.sin(wr.phase * wr.fy) * base * wr.ay
-          spawnHeart(nx, ny, 0.85, wr.color, wr.size)
+          const nx = cx + wr.ox * w + Math.sin(wr.phase * wr.fx) * base * wr.ax
+          const ny = cy + wr.oy * h + Math.sin(wr.phase * wr.fy) * base * wr.ay
+          spawnHeart(nx, ny, 0.85, wr.color, wr.size * 0.7)
         }
       }
 
@@ -512,9 +524,9 @@ function App() {
                 key="sonya-name"
                 className="absolute pointer-events-none select-none"
                 style={{ zIndex: 20, left: `${namePos.left}px`, top: `${namePos.top}px` }}
-                initial={{ opacity: 0, scale: 0.85, x: '-50%', y: '-50%', filter: 'blur(20px)' }}
-                animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%', filter: 'blur(0px)' }}
-                exit={{ opacity: 0, scale: 0.95, x: '-50%', y: '-50%', filter: 'blur(12px)' }}
+                initial={{ opacity: 0, scale: 0.85, x: '-50%', y: '-45%', filter: 'blur(20px)' }}
+                animate={{ opacity: 1, scale: 1, x: '-50%', y: '-45%', filter: 'blur(0px)' }}
+                exit={{ opacity: 0, scale: 0.95, x: '-50%', y: '-45%', filter: 'blur(12px)' }}
                 transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
               >
                 <svg
