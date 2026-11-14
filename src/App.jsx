@@ -301,7 +301,7 @@ function App() {
                             },
                           }}
                         >
-                          Саша разблокируй в тг
+                          С днём рождения)
                         </motion.span>
                       </motion.span>
                     </span>
