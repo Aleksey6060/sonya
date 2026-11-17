@@ -127,10 +127,15 @@ function App() {
     heartShapeRef.current = { box: heartBox, poly: heartPoly }
   }, [heartBox, heartPoly])
 
-  // One pair of motion values per letter: pushed away from the cursor and eased
-  // back to zero, so dragging across the heart bends it and it springs back.
+  // One triple of motion values per letter: pushed away from the cursor and
+  // eased back to zero, so dragging across the heart bends it and it springs back.
   const offsets = useMemo(
-    () => points.map(() => ({ x: motionValue(0), y: motionValue(0) })),
+    () =>
+      points.map(() => ({
+        x: motionValue(0),
+        y: motionValue(0),
+        r: motionValue(0),
+      })),
     [points],
   )
   const deformRef = useRef({ points, offsets })
@@ -396,27 +401,36 @@ function App() {
       {
         const { points: pts, offsets: offs } = deformRef.current
         const active = now - mouse.lastMoveTime < 700
-        const R = Math.min(w, h) * 0.2
-        const strength = R * 0.42
+        const R = Math.min(w, h) * 0.24
+        const strength = R * 0.6
+        const mdx = mouse.x - mouse.lastX
+        const mdy = mouse.y - mouse.lastY
+        const mlen = Math.hypot(mdx, mdy) || 1
         for (let i = 0; i < pts.length; i++) {
           const o = offs[i]
           if (!o) continue
           let tx = 0
           let ty = 0
+          let tr = 0
           if (active) {
             const ddx = pts[i].left - mouse.x
             const ddy = pts[i].top - mouse.y
             const d = Math.hypot(ddx, ddy)
             if (d < R && d > 0.001) {
-              const f = Math.pow(1 - d / R, 1.6)
+              const f = Math.pow(1 - d / R, 1.2)
               tx = (ddx / d) * f * strength
               ty = (ddy / d) * f * strength
+              // Tilt each letter along the sweep direction so the whole shape
+              // feels dragged by the cursor rather than just dented.
+              tr = (((mdx / mlen) * ty - (mdy / mlen) * tx) / strength) * 16
             }
           }
           const ocx = o.x.get()
           const ocy = o.y.get()
-          o.x.set(ocx + (tx - ocx) * 0.14)
-          o.y.set(ocy + (ty - ocy) * 0.14)
+          const ocr = o.r.get()
+          o.x.set(ocx + (tx - ocx) * 0.18)
+          o.y.set(ocy + (ty - ocy) * 0.18)
+          o.r.set(ocr + (tr - ocr) * 0.18)
         }
       }
 
@@ -543,7 +557,7 @@ function App() {
                     >
                       <motion.span
                         className="inline-block"
-                        style={{ x: offsets[i].x, y: offsets[i].y }}
+                        style={{ x: offsets[i].x, y: offsets[i].y, rotate: offsets[i].r }}
                       >
                       <motion.span
                         className="inline-block"
