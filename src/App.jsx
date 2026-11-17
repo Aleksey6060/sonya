@@ -646,7 +646,7 @@ function App() {
                             },
                           }}
                         >
-                          С днём рождения)
+                          С днём рождения ♡
                         </motion.span>
                       </motion.span>
                       </motion.span>
@@ -747,7 +747,7 @@ function App() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0, transition: { duration: 0.3, delay: 0 } }}
-                transition={{ duration: 0.9, delay: 3, ease: 'easeOut' }}
+                transition={{ duration: 0.9, delay: 2, ease: 'easeOut' }}
               >
                 <motion.div
                   className="absolute"
@@ -760,7 +760,7 @@ function App() {
                     repeat: Infinity,
                     repeatType: 'reverse',
                     repeatDelay: 0.5,
-                    delay: 3,
+                    delay: 2,
                   }}
                 >
                   <svg width="76" height="76" viewBox="0 0 24 24" fill="none" aria-hidden>
