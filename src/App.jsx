@@ -802,6 +802,20 @@ function App() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Author signature, tucked into the bottom-left corner */}
+          <motion.div
+            className="pointer-events-none absolute bottom-4 left-4 z-20 select-none text-[13px] tracking-[0.2em]"
+            style={{
+              color: 'rgba(255,143,241,0.55)',
+              textShadow: '0 0 10px rgba(255,0,170,0.35)',
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1.4, delay: 1, ease: 'easeOut' }}
+          >
+            /=◁✓
+          </motion.div>
       </div>
     </div>
   )
