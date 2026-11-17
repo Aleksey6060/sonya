@@ -12,7 +12,7 @@ function App() {
     h: window.visualViewport?.height ? Math.round(window.visualViewport.height) : window.innerHeight,
   }))
 
-  const { points, namePos, nameWidth } = useMemo(() => {
+  const { points, namePos, nameWidth, heartBox } = useMemo(() => {
     const count = 48
     const raw = Array.from({ length: count }, (_, i) => {
       const t = (Math.PI * 2 * i) / count
@@ -83,8 +83,21 @@ function App() {
       points: mapped,
       namePos: centroid,
       nameWidth: (maxX - minX) * scale * 0.72,
+      // Screen-space bounding box of the heart outline — used to keep the
+      // wandering hearts away from the center so the main shape stays crisp.
+      heartBox: {
+        cx: w / 2,
+        cy: h / 2,
+        rx: ((maxX - minX) * scale) / 2,
+        ry: ((maxY - minY) * scale) / 2,
+      },
     }
   }, [viewport.h, viewport.w])
+
+  const heartBoxRef = useRef(null)
+  useEffect(() => {
+    heartBoxRef.current = heartBox
+  }, [heartBox])
 
   useEffect(() => {
     let rafId = 0
@@ -282,14 +295,14 @@ function App() {
     const IDLE_THRESHOLD = 2200 // ms before auto mode kicks in
 
     // Multiple wandering emitters — each drifts along its own Lissajous path,
-    // anchored to a different spot (center, edges, corners) so hearts roam everywhere.
+    // anchored to a different spot (edges, corners) so hearts roam the frame
+    // without crossing the central heart.
     const wanderers = [
-      // center
-      { ox: 0.0, oy: 0.0, speed: 0.012, ax: 0.14, ay: 0.10, fx: 1.0, fy: 1.5, every: 3, size: 0.95, color: '#ff4fd8' },
-      { ox: 0.0, oy: 0.0, speed: 0.009, ax: 0.12, ay: 0.14, fx: 1.0, fy: 2.0, every: 3, size: 0.85, color: '#c77dff' },
-      // extra diagonal drifters
-      { ox: -0.24, oy: -0.12, speed: 0.016, ax: 0.12, ay: 0.10, fx: 2.0, fy: 3.0, every: 4, size: 0.85, color: '#ffd6f5' },
-      { ox: 0.24, oy: 0.12, speed: 0.014, ax: 0.12, ay: 0.10, fx: 3.0, fy: 2.0, every: 4, size: 0.8, color: '#ff6ec7' },
+      // diagonal drifters — kept off-center so the central heart stays crisp
+      { ox: -0.34, oy: -0.18, speed: 0.016, ax: 0.09, ay: 0.08, fx: 2.0, fy: 3.0, every: 4, size: 0.85, color: '#ffd6f5' },
+      { ox: 0.34, oy: 0.18, speed: 0.014, ax: 0.09, ay: 0.08, fx: 3.0, fy: 2.0, every: 4, size: 0.8, color: '#ff6ec7' },
+      { ox: -0.34, oy: 0.18, speed: 0.013, ax: 0.08, ay: 0.08, fx: 1.0, fy: 2.5, every: 4, size: 0.8, color: '#c77dff' },
+      { ox: 0.34, oy: -0.18, speed: 0.015, ax: 0.08, ay: 0.08, fx: 2.5, fy: 1.0, every: 4, size: 0.85, color: '#ff4fd8' },
     ]
 
     // Ring of emitters hugging the viewport border (edges + corners) so the
@@ -356,6 +369,11 @@ function App() {
         const cy = h / 2
         const base = Math.min(w, h)
         const activeMul = idle ? 1 : 3
+        // Elliptical keep-out matching the main heart — no drifter may appear
+        // over it, otherwise the text-heart visually ripples.
+        const box = heartBoxRef.current
+        const kx = box ? box.rx * 0.98 : 0
+        const ky = box ? box.ry * 0.98 : 0
         for (const wr of wanderers) {
           wr.phase += wr.speed
           wr.acc += 1
@@ -363,6 +381,11 @@ function App() {
           wr.acc = 0
           const nx = cx + wr.ox * w + Math.sin(wr.phase * wr.fx) * base * wr.ax
           const ny = cy + wr.oy * h + Math.sin(wr.phase * wr.fy) * base * wr.ay
+          if (kx > 0 && ky > 0) {
+            const ex = (nx - cx) / kx
+            const ey = (ny - cy) / ky
+            if (ex * ex + ey * ey < 1) continue
+          }
           spawnHeart(nx, ny, 0.85, wr.color, wr.size * 0.7)
         }
       }
