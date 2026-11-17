@@ -287,21 +287,34 @@ function App() {
       // center
       { ox: 0.0, oy: 0.0, speed: 0.012, ax: 0.14, ay: 0.10, fx: 1.0, fy: 1.5, every: 3, size: 0.95, color: '#ff4fd8' },
       { ox: 0.0, oy: 0.0, speed: 0.009, ax: 0.12, ay: 0.14, fx: 1.0, fy: 2.0, every: 3, size: 0.85, color: '#c77dff' },
-      // corners
-      { ox: -0.34, oy: -0.30, speed: 0.013, ax: 0.10, ay: 0.08, fx: 1.0, fy: 1.0, every: 3, size: 0.9, color: '#ff8ff1' },
-      { ox: 0.34, oy: -0.30, speed: 0.011, ax: 0.10, ay: 0.08, fx: 1.0, fy: 2.0, every: 3, size: 0.85, color: '#e056fd' },
-      { ox: -0.34, oy: 0.30, speed: 0.014, ax: 0.10, ay: 0.08, fx: 2.0, fy: 1.0, every: 3, size: 0.8, color: '#ff6ec7' },
-      { ox: 0.34, oy: 0.30, speed: 0.010, ax: 0.10, ay: 0.08, fx: 3.0, fy: 2.0, every: 3, size: 0.95, color: '#ffb3ec' },
-      // left / right edges
-      { ox: -0.42, oy: 0.0, speed: 0.012, ax: 0.06, ay: 0.16, fx: 1.0, fy: 2.0, every: 3, size: 0.85, color: '#ff4fd8' },
-      { ox: 0.42, oy: 0.0, speed: 0.015, ax: 0.06, ay: 0.16, fx: 2.0, fy: 1.0, every: 3, size: 0.8, color: '#c77dff' },
-      // top / bottom edges
-      { ox: 0.0, oy: -0.40, speed: 0.013, ax: 0.18, ay: 0.06, fx: 1.5, fy: 1.0, every: 3, size: 0.9, color: '#ff8ff1' },
-      { ox: 0.0, oy: 0.40, speed: 0.011, ax: 0.18, ay: 0.06, fx: 1.0, fy: 1.5, every: 3, size: 0.75, color: '#e056fd' },
       // extra diagonal drifters
-      { ox: -0.24, oy: -0.10, speed: 0.016, ax: 0.12, ay: 0.10, fx: 2.0, fy: 3.0, every: 4, size: 0.85, color: '#ffd6f5' },
-      { ox: 0.24, oy: 0.10, speed: 0.014, ax: 0.12, ay: 0.10, fx: 3.0, fy: 2.0, every: 4, size: 0.8, color: '#ff6ec7' },
-    ].map((wr, i) => ({ ...wr, phase: (i * Math.PI) / 3, acc: 0 }))
+      { ox: -0.24, oy: -0.12, speed: 0.016, ax: 0.12, ay: 0.10, fx: 2.0, fy: 3.0, every: 4, size: 0.85, color: '#ffd6f5' },
+      { ox: 0.24, oy: 0.12, speed: 0.014, ax: 0.12, ay: 0.10, fx: 3.0, fy: 2.0, every: 4, size: 0.8, color: '#ff6ec7' },
+    ]
+
+    // Ring of emitters hugging the viewport border (edges + corners) so the
+    // hearts noticeably populate the frame instead of clustering in the middle.
+    const RING = 18
+    for (let i = 0; i < RING; i++) {
+      const a = (i / RING) * Math.PI * 2
+      wanderers.push({
+        ox: Math.cos(a) * 0.45,
+        oy: Math.sin(a) * 0.43,
+        speed: 0.008 + Math.random() * 0.009,
+        ax: 0.05 + Math.random() * 0.06,
+        ay: 0.05 + Math.random() * 0.06,
+        fx: 1 + Math.random() * 2,
+        fy: 1 + Math.random() * 2,
+        every: 3 + (i % 2),
+        size: 0.75 + Math.random() * 0.2,
+        color: palette[i % palette.length],
+      })
+    }
+
+    wanderers.forEach((wr, i) => {
+      wr.phase = (i * Math.PI) / 3
+      wr.acc = 0
+    })
 
     const loop = () => {
       ctx.clearRect(0, 0, w, h)
@@ -312,12 +325,21 @@ function App() {
         const dx = mouse.x - mouse.lastX
         const dy = mouse.y - mouse.lastY
         const dist = Math.hypot(dx, dy)
+        const len = Math.max(dist, 1)
+        // Unit vector perpendicular to the motion. Hearts are scattered along it
+        // so a fast swipe doesn't leave a razor-straight trail behind the cursor.
+        const px = -dy / len
+        const py = dx / len
         spawnAccum += dist
         const spawnInterval = 18
         while (spawnAccum >= spawnInterval) {
           spawnAccum -= spawnInterval
-          const t = spawnAccum / Math.max(dist, 1)
-          spawnHeart(mouse.lastX + dx * t, mouse.lastY + dy * t)
+          const t = Math.random()
+          const spread = (Math.random() - 0.5) * 52
+          spawnHeart(
+            mouse.lastX + dx * t + px * spread,
+            mouse.lastY + dy * t + py * spread,
+          )
         }
         mouse.lastX = mouse.x
         mouse.lastY = mouse.y
@@ -326,21 +348,26 @@ function App() {
         spawnAccum = 0
       }
 
-      // Autonomous mode: several hearts drifting along flowing Lissajous curves
-      if (idle) {
+      // Autonomous mode: hearts drift along flowing Lissajous curves. Emitters keep
+      // moving even while the cursor is active (just sparser) so the two systems
+      // blend instead of fighting each other in bursts.
+      {
         const cx = w / 2
         const cy = h / 2
         const base = Math.min(w, h)
+        const activeMul = idle ? 1 : 3
         for (const wr of wanderers) {
           wr.phase += wr.speed
           wr.acc += 1
-          if (wr.acc < wr.every) continue
+          if (wr.acc < wr.every * activeMul) continue
           wr.acc = 0
           const nx = cx + wr.ox * w + Math.sin(wr.phase * wr.fx) * base * wr.ax
           const ny = cy + wr.oy * h + Math.sin(wr.phase * wr.fy) * base * wr.ay
           spawnHeart(nx, ny, 0.85, wr.color, wr.size * 0.7)
         }
       }
+
+      if (hearts.length > 900) hearts.splice(0, hearts.length - 900)
 
       for (let i = hearts.length - 1; i >= 0; i--) {
         const hrt = hearts[i]
