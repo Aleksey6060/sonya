@@ -701,8 +701,8 @@ function App() {
                 <motion.div
                   className="absolute"
                   style={{ x: '-50%', y: '-50%' }}
-                  initial={{ left: '50%', top: '106%', rotate: -90 }}
-                  animate={{ left: ['50%', '86%'], top: ['106%', '50%'], rotate: [-90, 0] }}
+                  initial={{ left: '50%', top: '84%', rotate: -90 }}
+                  animate={{ left: ['50%', '86%'], top: ['84%', '50%'], rotate: [-90, 0] }}
                   transition={{
                     duration: 4.4,
                     ease: 'easeInOut',
