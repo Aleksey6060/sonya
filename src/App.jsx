@@ -179,7 +179,7 @@ function App() {
 
   useEffect(() => {
     const startDelayMs = 900
-    const nameHoldMs = 3000
+    const nameHoldMs = 2000
     const stepDelayMs = 80
 
     const nameTimerId = window.setTimeout(() => {
@@ -662,7 +662,13 @@ function App() {
               <motion.div
                 key="sonya-name"
                 className="absolute pointer-events-none select-none"
-                style={{ zIndex: 20, left: `${namePos.left}px`, top: `${namePos.top}px` }}
+                style={{
+                  zIndex: 20,
+                  // Anchored to the heart itself (area centroid of its outline),
+                  // nudged 5% of the heart's height downwards.
+                  left: `${namePos.left}px`,
+                  top: `${namePos.top + heartBox.ry * 0.1}px`,
+                }}
                 initial={{ opacity: 0, scale: 0.85, x: '-50%', y: '-45%', filter: 'blur(20px)' }}
                 animate={{ opacity: 1, scale: 1, x: '-50%', y: '-45%', filter: 'blur(0px)' }}
                 exit={{ opacity: 0, scale: 0.95, x: '-50%', y: '-45%', filter: 'blur(12px)' }}
