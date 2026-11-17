@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, motionValue } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import initFluid from './lib/fluidSim.js'
 
@@ -126,6 +126,17 @@ function App() {
   useEffect(() => {
     heartShapeRef.current = { box: heartBox, poly: heartPoly }
   }, [heartBox, heartPoly])
+
+  // One pair of motion values per letter: pushed away from the cursor and eased
+  // back to zero, so dragging across the heart bends it and it springs back.
+  const offsets = useMemo(
+    () => points.map(() => ({ x: motionValue(0), y: motionValue(0) })),
+    [points],
+  )
+  const deformRef = useRef({ points, offsets })
+  useEffect(() => {
+    deformRef.current = { points, offsets }
+  }, [points, offsets])
 
   useEffect(() => {
     let rafId = 0
@@ -380,6 +391,35 @@ function App() {
       const now = performance.now()
       const idle = now - mouse.lastMoveTime > IDLE_THRESHOLD
 
+      // Letters bend away from the cursor and spring back once it leaves — a
+      // soft, physical reaction when the pointer is dragged across the heart.
+      {
+        const { points: pts, offsets: offs } = deformRef.current
+        const active = now - mouse.lastMoveTime < 700
+        const R = Math.min(w, h) * 0.2
+        const strength = R * 0.42
+        for (let i = 0; i < pts.length; i++) {
+          const o = offs[i]
+          if (!o) continue
+          let tx = 0
+          let ty = 0
+          if (active) {
+            const ddx = pts[i].left - mouse.x
+            const ddy = pts[i].top - mouse.y
+            const d = Math.hypot(ddx, ddy)
+            if (d < R && d > 0.001) {
+              const f = Math.pow(1 - d / R, 1.6)
+              tx = (ddx / d) * f * strength
+              ty = (ddy / d) * f * strength
+            }
+          }
+          const ocx = o.x.get()
+          const ocy = o.y.get()
+          o.x.set(ocx + (tx - ocx) * 0.14)
+          o.y.set(ocy + (ty - ocy) * 0.14)
+        }
+      }
+
       if (mouse.moved && !idle) {
         const dx = mouse.x - mouse.lastX
         const dy = mouse.y - mouse.lastY
@@ -503,6 +543,10 @@ function App() {
                     >
                       <motion.span
                         className="inline-block"
+                        style={{ x: offsets[i].x, y: offsets[i].y }}
+                      >
+                      <motion.span
+                        className="inline-block"
                         initial={{
                           opacity: 0,
                           scale: 0.98,
@@ -604,6 +648,7 @@ function App() {
                         >
                           С днём рождения)
                         </motion.span>
+                      </motion.span>
                       </motion.span>
                     </span>
                   )
