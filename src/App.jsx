@@ -287,8 +287,6 @@ function App() {
       ctx.scale(size, size)
       ctx.globalAlpha = alpha
       ctx.fillStyle = color
-      ctx.shadowColor = color
-      ctx.shadowBlur = 18
       ctx.beginPath()
       // Heart path (centered at 0,0)
       ctx.moveTo(0, 0.3)
@@ -343,44 +341,39 @@ function App() {
     let spawnAccum = 0
     const IDLE_THRESHOLD = 2200 // ms before auto mode kicks in
 
-    // Multiple wandering emitters — each drifts along its own Lissajous path,
-    // anchored to a different spot (edges, corners) so hearts roam the frame
-    // without crossing the central heart.
-    const wanderers = [
-      // diagonal drifters — kept off-center so the central heart stays crisp
-      { ox: -0.34, oy: -0.18, speed: 0.016, ax: 0.09, ay: 0.08, fx: 2.0, fy: 3.0, every: 4, size: 0.85, color: '#ffd6f5' },
-      { ox: 0.34, oy: 0.18, speed: 0.014, ax: 0.09, ay: 0.08, fx: 3.0, fy: 2.0, every: 4, size: 0.8, color: '#ff6ec7' },
-      { ox: -0.34, oy: 0.18, speed: 0.013, ax: 0.08, ay: 0.08, fx: 1.0, fy: 2.5, every: 4, size: 0.8, color: '#c77dff' },
-      { ox: 0.34, oy: -0.18, speed: 0.015, ax: 0.08, ay: 0.08, fx: 2.5, fy: 1.0, every: 4, size: 0.85, color: '#ff4fd8' },
-      // the notch between the lobes tends to stay empty — feed it directly
-      { ox: 0.0, oy: -0.24, speed: 0.013, ax: 0.09, ay: 0.05, fx: 1.0, fy: 2.0, every: 3, size: 0.85, color: '#ffb3ec' },
-      { ox: -0.10, oy: -0.27, speed: 0.015, ax: 0.07, ay: 0.05, fx: 2.0, fy: 1.0, every: 3, size: 0.8, color: '#ff8ff1' },
-      { ox: 0.10, oy: -0.27, speed: 0.012, ax: 0.07, ay: 0.05, fx: 1.5, fy: 2.5, every: 3, size: 0.8, color: '#e056fd' },
-    ]
-
-    // Ring of emitters hugging the viewport border (edges + corners) so the
-    // hearts noticeably populate the frame instead of clustering in the middle.
-    const RING = 18
-    for (let i = 0; i < RING; i++) {
-      const a = (i / RING) * Math.PI * 2
-      wanderers.push({
-        ox: Math.cos(a) * 0.42,
-        oy: Math.sin(a) * 0.36,
-        speed: 0.008 + Math.random() * 0.009,
-        ax: 0.05 + Math.random() * 0.06,
-        ay: 0.05 + Math.random() * 0.06,
-        fx: 1 + Math.random() * 2,
-        fy: 1 + Math.random() * 2,
-        every: 3 + (i % 2),
-        size: 0.75 + Math.random() * 0.2,
-        color: palette[i % palette.length],
-      })
+    // Emitters sit on a jittered grid covering the whole viewport (corners
+    // included). Anchors landing inside the central heart are dropped, so the
+    // free space fills evenly instead of piling up in a halo around the letters.
+    const heartPolyNow = heartShapeRef.current?.poly
+    const wanderers = []
+    const COLS = 6
+    const ROWS = 5
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const ox = -0.47 + (c / (COLS - 1)) * 0.94 + (Math.random() - 0.5) * 0.08
+        const oy = -0.47 + (r / (ROWS - 1)) * 0.94 + (Math.random() - 0.5) * 0.08
+        if (
+          heartPolyNow &&
+          pointInPolygon(heartPolyNow, w / 2 + ox * w, h / 2 + oy * h)
+        ) {
+          continue
+        }
+        wanderers.push({
+          ox,
+          oy,
+          phase: Math.random() * Math.PI * 2,
+          acc: Math.floor(Math.random() * 5),
+          speed: 0.008 + Math.random() * 0.008,
+          ax: 0.12 + Math.random() * 0.12,
+          ay: 0.09 + Math.random() * 0.1,
+          fx: 1 + Math.random() * 2,
+          fy: 1 + Math.random() * 2,
+          every: 5,
+          size: 0.7 + Math.random() * 0.22,
+          color: palette[Math.floor(Math.random() * palette.length)],
+        })
+      }
     }
-
-    wanderers.forEach((wr, i) => {
-      wr.phase = (i * Math.PI) / 3
-      wr.acc = 0
-    })
 
     const loop = () => {
       ctx.clearRect(0, 0, w, h)
@@ -397,7 +390,7 @@ function App() {
         const px = -dy / len
         const py = dx / len
         spawnAccum += dist
-        const spawnInterval = 18
+        const spawnInterval = 22
         while (spawnAccum >= spawnInterval) {
           spawnAccum -= spawnInterval
           const t = Math.random()
@@ -437,8 +430,11 @@ function App() {
         }
       }
 
-      if (hearts.length > 900) hearts.splice(0, hearts.length - 900)
+      if (hearts.length > 520) hearts.splice(0, hearts.length - 520)
 
+      // Additive blending fakes the glow far more cheaply than a per-heart
+      // shadowBlur — that shadow was the main cause of the frame drops.
+      ctx.globalCompositeOperation = 'lighter'
       for (let i = hearts.length - 1; i >= 0; i--) {
         const hrt = hearts[i]
         hrt.x += hrt.vx
@@ -452,6 +448,7 @@ function App() {
         }
         drawHeart(hrt.x, hrt.y, hrt.size * 22, hrt.color, hrt.life, hrt.rotation)
       }
+      ctx.globalCompositeOperation = 'source-over'
 
       rafId = window.requestAnimationFrame(loop)
     }
@@ -687,32 +684,33 @@ function App() {
             )}
           </AnimatePresence>
 
-          {/* Cursor-effect hint: a soft hand silhouette drifting around, shown
-              only if nobody has touched the pointer yet and everything is drawn. */}
+          {/* Cursor-effect hint: a hand silhouette that "swipes" across the screen.
+              It only appears if nobody has moved the pointer yet, and only 3s
+              after everything is drawn. Finger starts pointing left at the
+              bottom-centre and sweeps to mid-right pointing up, then back. */}
           <AnimatePresence>
             {visibleCount >= points.length && !pointerMoved && (
               <motion.div
                 key="cursor-hint"
-                className="pointer-events-none absolute z-30"
-                style={{
-                  left: `${namePos.left}px`,
-                  top: `${namePos.top + heartBox.ry * 0.55}px`,
-                  x: '-50%',
-                  y: '-50%',
-                }}
+                className="pointer-events-none absolute inset-0 z-30"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.9, delay: 0.6, ease: 'easeOut' }}
+                transition={{ duration: 0.9, delay: 3, ease: 'easeOut' }}
               >
                 <motion.div
-                  className="relative"
-                  animate={{
-                    x: [0, 62, 20, -54, 0],
-                    y: [0, -22, 26, 10, 0],
-                    rotate: [0, -6, 4, -3, 0],
+                  className="absolute"
+                  style={{ x: '-50%', y: '-50%' }}
+                  initial={{ left: '50%', top: '106%', rotate: -90 }}
+                  animate={{ left: ['50%', '86%'], top: ['106%', '50%'], rotate: [-90, 0] }}
+                  transition={{
+                    duration: 4.4,
+                    ease: 'easeInOut',
+                    repeat: Infinity,
+                    repeatType: 'reverse',
+                    repeatDelay: 0.5,
+                    delay: 3,
                   }}
-                  transition={{ duration: 6.5, ease: 'easeInOut', repeat: Infinity }}
                 >
                   <svg width="76" height="76" viewBox="0 0 24 24" fill="none" aria-hidden>
                     <defs>
@@ -739,8 +737,8 @@ function App() {
                   <motion.span
                     className="absolute h-6 w-6 rounded-full"
                     style={{
-                      left: 25,
-                      top: 6,
+                      left: 19,
+                      top: 9,
                       x: '-50%',
                       y: '-50%',
                       background:
