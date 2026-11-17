@@ -4,6 +4,7 @@ import initFluid from './lib/fluidSim.js'
 
 function App() {
   const [started, setStarted] = useState(false)
+  const [showName, setShowName] = useState(false)
   const [visibleCount, setVisibleCount] = useState(0)
   const canvasRef = useRef(null)
   const heartsCanvasRef = useRef(null)
@@ -125,12 +126,17 @@ function App() {
 
   useEffect(() => {
     const startDelayMs = 900
+    const nameHoldMs = 2000
     const stepDelayMs = 120
+
+    const nameTimerId = window.setTimeout(() => {
+      setShowName(true)
+    }, startDelayMs)
 
     const startTimerId = window.setTimeout(() => {
       setStarted(true)
       setVisibleCount(1)
-    }, startDelayMs)
+    }, startDelayMs + nameHoldMs)
 
     let intervalId = null
     const intervalStartId = window.setTimeout(() => {
@@ -144,9 +150,10 @@ function App() {
           return next
         })
       }, stepDelayMs)
-    }, startDelayMs)
+    }, startDelayMs + nameHoldMs)
 
     return () => {
+      window.clearTimeout(nameTimerId)
       window.clearTimeout(startTimerId)
       window.clearTimeout(intervalStartId)
       if (intervalId) window.clearInterval(intervalId)
@@ -569,7 +576,7 @@ function App() {
 
           {/* Name Соня in the center of the heart — hand-drawn SVG */}
           <AnimatePresence>
-            {visibleCount >= points.length && (
+            {showName && (
               <motion.div
                 key="sonya-name"
                 className="absolute pointer-events-none select-none"
