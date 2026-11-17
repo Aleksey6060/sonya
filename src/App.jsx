@@ -5,6 +5,7 @@ import initFluid from './lib/fluidSim.js'
 function App() {
   const [started, setStarted] = useState(false)
   const [showName, setShowName] = useState(false)
+  const [pointerMoved, setPointerMoved] = useState(false)
   const [visibleCount, setVisibleCount] = useState(0)
   const canvasRef = useRef(null)
   const heartsCanvasRef = useRef(null)
@@ -124,9 +125,24 @@ function App() {
     }
   }, [])
 
+  // The cursor-effect hint is only relevant for someone who hasn't moved the
+  // pointer yet — the very first move dismisses it for good.
+  useEffect(() => {
+    const onFirstMove = () => setPointerMoved(true)
+    const opts = { once: true, passive: true }
+    window.addEventListener('mousemove', onFirstMove, opts)
+    window.addEventListener('touchstart', onFirstMove, opts)
+    window.addEventListener('touchmove', onFirstMove, opts)
+    return () => {
+      window.removeEventListener('mousemove', onFirstMove)
+      window.removeEventListener('touchstart', onFirstMove)
+      window.removeEventListener('touchmove', onFirstMove)
+    }
+  }, [])
+
   useEffect(() => {
     const startDelayMs = 900
-    const nameHoldMs = 2000
+    const nameHoldMs = 2200
     const stepDelayMs = 120
 
     const nameTimerId = window.setTimeout(() => {
@@ -584,7 +600,7 @@ function App() {
                 initial={{ opacity: 0, scale: 0.85, x: '-50%', y: '-45%', filter: 'blur(20px)' }}
                 animate={{ opacity: 1, scale: 1, x: '-50%', y: '-45%', filter: 'blur(0px)' }}
                 exit={{ opacity: 0, scale: 0.95, x: '-50%', y: '-45%', filter: 'blur(12px)' }}
-                transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
+                transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
               >
                 <svg
                   className="sonya-svg"
@@ -631,18 +647,80 @@ function App() {
                       strokeOpacity: [1, 1, 0.85],
                     }}
                     transition={{
-                      strokeDashoffset: { duration: 2.6, ease: [0.65, 0, 0.35, 1], delay: 0.6 },
+                      strokeDashoffset: { duration: 1.9, ease: [0.65, 0, 0.35, 1], delay: 0.2 },
                       fillOpacity: {
-                        duration: 1.2,
+                        duration: 1.0,
                         times: [0, 0.85, 1],
-                        delay: 0.6,
+                        delay: 0.2,
                       },
-                      strokeOpacity: { duration: 1.2, times: [0, 0.85, 1], delay: 0.6 },
+                      strokeOpacity: { duration: 1.0, times: [0, 0.85, 1], delay: 0.2 },
                     }}
                   >
                     Соня
                   </motion.text>
                 </svg>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Cursor-effect hint: a soft hand silhouette drifting around, shown
+              only if nobody has touched the pointer yet and everything is drawn. */}
+          <AnimatePresence>
+            {visibleCount >= points.length && !pointerMoved && (
+              <motion.div
+                key="cursor-hint"
+                className="pointer-events-none absolute z-30"
+                style={{ left: '50%', top: '58%', x: '-50%', y: '-50%' }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.9, delay: 0.6, ease: 'easeOut' }}
+              >
+                <motion.div
+                  className="relative"
+                  animate={{
+                    x: [0, 96, 34, -84, 0],
+                    y: [0, -44, 46, 18, 0],
+                    rotate: [0, -7, 5, -3, 0],
+                  }}
+                  transition={{ duration: 6.5, ease: 'easeInOut', repeat: Infinity }}
+                >
+                  <svg width="58" height="66" viewBox="0 0 58 66" fill="none" aria-hidden>
+                    <defs>
+                      <linearGradient id="hintGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#ff8ff1" />
+                        <stop offset="55%" stopColor="#ff4fd8" />
+                        <stop offset="100%" stopColor="#c77dff" />
+                      </linearGradient>
+                    </defs>
+                    <g fill="url(#hintGrad)" opacity="0.92">
+                      <rect x="24" y="3" width="14" height="36" rx="7" />
+                      <rect x="10" y="24" width="38" height="34" rx="15" />
+                      <rect x="36" y="26" width="16" height="12" rx="6" />
+                      <rect
+                        x="5"
+                        y="30"
+                        width="14"
+                        height="22"
+                        rx="7"
+                        transform="rotate(-16 12 41)"
+                      />
+                    </g>
+                  </svg>
+                  <motion.span
+                    className="absolute h-7 w-7 rounded-full"
+                    style={{
+                      left: 31,
+                      top: 3,
+                      x: '-50%',
+                      y: '-50%',
+                      background:
+                        'radial-gradient(circle, rgba(255,120,225,0.6) 0%, rgba(255,120,225,0) 70%)',
+                    }}
+                    animate={{ scale: [0.35, 1.6], opacity: [0.9, 0] }}
+                    transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
+                  />
+                </motion.div>
               </motion.div>
             )}
           </AnimatePresence>
