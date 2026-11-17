@@ -484,9 +484,9 @@ function App() {
                   const floatDelay = 0.55 + p.seed * 0.35
                   const floatDuration = 3.9 + p.seed * 2.3
                   const shimmerDuration = 1.9 + p.seed * 1.5
-                  const yAmp = 9 + p.seed * 11
-                  const rotAmp = 0.35 + p.seed * 0.85
-                  const xAmp = (p.seed - 0.5) * 10
+                  const yAmp = 4.5 + p.seed * 6
+                  const rotAmp = 0.18 + p.seed * 0.5
+                  const xAmp = (p.seed - 0.5) * 6
                   const rebirthEnabled = visibleCount >= points.length
                   const rebirthDuration = (6.8 + p.seed * 2.8) * 0.8
                   const rebirthDelay = (i / points.length) * rebirthDuration
@@ -528,13 +528,13 @@ function App() {
                           initial={{ backgroundPosition: '0% 50%' }}
                           animate={{
                             opacity: rebirthEnabled
-                              ? [1, 1, 0.5, 1, 1]
+                              ? [1, 1, 0.86, 1, 1]
                               : [0.92, 1, 0.92],
                             filter: rebirthEnabled
                               ? [
                                   'blur(0px)',
                                   'blur(0px)',
-                                  'blur(9px)',
+                                  'blur(3.5px)',
                                   'blur(0px)',
                                   'blur(0px)',
                                 ]
