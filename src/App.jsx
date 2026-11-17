@@ -2,6 +2,22 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import initFluid from './lib/fluidSim.js'
 
+// Ray-casting point-in-polygon test (poly is a flat [x0,y0,x1,y1,...] array).
+const pointInPolygon = (poly, x, y) => {
+  let inside = false
+  const n = poly.length / 2
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = poly[i * 2]
+    const yi = poly[i * 2 + 1]
+    const xj = poly[j * 2]
+    const yj = poly[j * 2 + 1]
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+      inside = !inside
+    }
+  }
+  return inside
+}
+
 function App() {
   const [started, setStarted] = useState(false)
   const [showName, setShowName] = useState(false)
@@ -14,7 +30,7 @@ function App() {
     h: window.visualViewport?.height ? Math.round(window.visualViewport.height) : window.innerHeight,
   }))
 
-  const { points, namePos, nameWidth, heartBox } = useMemo(() => {
+  const { points, namePos, nameWidth, heartBox, heartPoly } = useMemo(() => {
     const count = 48
     const raw = Array.from({ length: count }, (_, i) => {
       const t = (Math.PI * 2 * i) / count
@@ -81,11 +97,20 @@ function App() {
         ? { left: cxAcc / (3 * crossSum), top: cyAcc / (3 * crossSum) }
         : { left: w / 2, top: h / 2 }
 
+    // Outline slightly enlarged about its own centre. Spawns landing inside it
+    // are skipped, so drifting hearts hug the heart instead of covering it.
+    const polyScale = 1.12
+    const heartPoly = new Float32Array(mapped.length * 2)
+    mapped.forEach((p, i) => {
+      heartPoly[i * 2] = w / 2 + (p.left - w / 2) * polyScale
+      heartPoly[i * 2 + 1] = h / 2 + (p.top - h / 2) * polyScale
+    })
+
     return {
       points: mapped,
       namePos: centroid,
       nameWidth: (maxX - minX) * scale * 0.72,
-      // Screen-space bounding box of the heart outline — used to keep the
+      // Screen-space bounding box + outline of the heart — used to keep the
       // wandering hearts away from the center so the main shape stays crisp.
       heartBox: {
         cx: w / 2,
@@ -93,13 +118,14 @@ function App() {
         rx: ((maxX - minX) * scale) / 2,
         ry: ((maxY - minY) * scale) / 2,
       },
+      heartPoly,
     }
   }, [viewport.h, viewport.w])
 
-  const heartBoxRef = useRef(null)
+  const heartShapeRef = useRef(null)
   useEffect(() => {
-    heartBoxRef.current = heartBox
-  }, [heartBox])
+    heartShapeRef.current = { box: heartBox, poly: heartPoly }
+  }, [heartBox, heartPoly])
 
   useEffect(() => {
     let rafId = 0
@@ -142,8 +168,8 @@ function App() {
 
   useEffect(() => {
     const startDelayMs = 900
-    const nameHoldMs = 2200
-    const stepDelayMs = 120
+    const nameHoldMs = 3000
+    const stepDelayMs = 80
 
     const nameTimerId = window.setTimeout(() => {
       setShowName(true)
@@ -326,6 +352,10 @@ function App() {
       { ox: 0.34, oy: 0.18, speed: 0.014, ax: 0.09, ay: 0.08, fx: 3.0, fy: 2.0, every: 4, size: 0.8, color: '#ff6ec7' },
       { ox: -0.34, oy: 0.18, speed: 0.013, ax: 0.08, ay: 0.08, fx: 1.0, fy: 2.5, every: 4, size: 0.8, color: '#c77dff' },
       { ox: 0.34, oy: -0.18, speed: 0.015, ax: 0.08, ay: 0.08, fx: 2.5, fy: 1.0, every: 4, size: 0.85, color: '#ff4fd8' },
+      // the notch between the lobes tends to stay empty — feed it directly
+      { ox: 0.0, oy: -0.24, speed: 0.013, ax: 0.09, ay: 0.05, fx: 1.0, fy: 2.0, every: 3, size: 0.85, color: '#ffb3ec' },
+      { ox: -0.10, oy: -0.27, speed: 0.015, ax: 0.07, ay: 0.05, fx: 2.0, fy: 1.0, every: 3, size: 0.8, color: '#ff8ff1' },
+      { ox: 0.10, oy: -0.27, speed: 0.012, ax: 0.07, ay: 0.05, fx: 1.5, fy: 2.5, every: 3, size: 0.8, color: '#e056fd' },
     ]
 
     // Ring of emitters hugging the viewport border (edges + corners) so the
@@ -334,8 +364,8 @@ function App() {
     for (let i = 0; i < RING; i++) {
       const a = (i / RING) * Math.PI * 2
       wanderers.push({
-        ox: Math.cos(a) * 0.45,
-        oy: Math.sin(a) * 0.43,
+        ox: Math.cos(a) * 0.42,
+        oy: Math.sin(a) * 0.36,
         speed: 0.008 + Math.random() * 0.009,
         ax: 0.05 + Math.random() * 0.06,
         ay: 0.05 + Math.random() * 0.06,
@@ -392,11 +422,9 @@ function App() {
         const cy = h / 2
         const base = Math.min(w, h)
         const activeMul = idle ? 1 : 3
-        // Elliptical keep-out matching the main heart — no drifter may appear
-        // over it, otherwise the text-heart visually ripples.
-        const box = heartBoxRef.current
-        const kx = box ? box.rx * 0.98 : 0
-        const ky = box ? box.ry * 0.98 : 0
+        // Keep-out follows the exact heart outline, so the empty corners around
+        // it (notably right above the lobes) stay populated by drifters.
+        const poly = heartShapeRef.current?.poly
         for (const wr of wanderers) {
           wr.phase += wr.speed
           wr.acc += 1
@@ -404,11 +432,7 @@ function App() {
           wr.acc = 0
           const nx = cx + wr.ox * w + Math.sin(wr.phase * wr.fx) * base * wr.ax
           const ny = cy + wr.oy * h + Math.sin(wr.phase * wr.fy) * base * wr.ay
-          if (kx > 0 && ky > 0) {
-            const ex = (nx - cx) / kx
-            const ey = (ny - cy) / ky
-            if (ex * ex + ey * ey < 1) continue
-          }
+          if (poly && pointInPolygon(poly, nx, ny)) continue
           spawnHeart(nx, ny, 0.85, wr.color, wr.size * 0.7)
         }
       }
@@ -600,7 +624,7 @@ function App() {
                 initial={{ opacity: 0, scale: 0.85, x: '-50%', y: '-45%', filter: 'blur(20px)' }}
                 animate={{ opacity: 1, scale: 1, x: '-50%', y: '-45%', filter: 'blur(0px)' }}
                 exit={{ opacity: 0, scale: 0.95, x: '-50%', y: '-45%', filter: 'blur(12px)' }}
-                transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
+                transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.25 }}
               >
                 <svg
                   className="sonya-svg"
@@ -647,13 +671,13 @@ function App() {
                       strokeOpacity: [1, 1, 0.85],
                     }}
                     transition={{
-                      strokeDashoffset: { duration: 1.9, ease: [0.65, 0, 0.35, 1], delay: 0.2 },
+                      strokeDashoffset: { duration: 2.6, ease: [0.65, 0, 0.35, 1], delay: 0.3 },
                       fillOpacity: {
-                        duration: 1.0,
+                        duration: 1.2,
                         times: [0, 0.85, 1],
-                        delay: 0.2,
+                        delay: 0.3,
                       },
-                      strokeOpacity: { duration: 1.0, times: [0, 0.85, 1], delay: 0.2 },
+                      strokeOpacity: { duration: 1.2, times: [0, 0.85, 1], delay: 0.3 },
                     }}
                   >
                     Соня
@@ -670,7 +694,12 @@ function App() {
               <motion.div
                 key="cursor-hint"
                 className="pointer-events-none absolute z-30"
-                style={{ left: '50%', top: '58%', x: '-50%', y: '-50%' }}
+                style={{
+                  left: `${namePos.left}px`,
+                  top: `${namePos.top + heartBox.ry * 0.55}px`,
+                  x: '-50%',
+                  y: '-50%',
+                }}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -679,13 +708,13 @@ function App() {
                 <motion.div
                   className="relative"
                   animate={{
-                    x: [0, 96, 34, -84, 0],
-                    y: [0, -44, 46, 18, 0],
-                    rotate: [0, -7, 5, -3, 0],
+                    x: [0, 62, 20, -54, 0],
+                    y: [0, -22, 26, 10, 0],
+                    rotate: [0, -6, 4, -3, 0],
                   }}
                   transition={{ duration: 6.5, ease: 'easeInOut', repeat: Infinity }}
                 >
-                  <svg width="58" height="66" viewBox="0 0 58 66" fill="none" aria-hidden>
+                  <svg width="76" height="76" viewBox="0 0 24 24" fill="none" aria-hidden>
                     <defs>
                       <linearGradient id="hintGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="#ff8ff1" />
@@ -693,31 +722,31 @@ function App() {
                         <stop offset="100%" stopColor="#c77dff" />
                       </linearGradient>
                     </defs>
-                    <g fill="url(#hintGrad)" opacity="0.92">
-                      <rect x="24" y="3" width="14" height="36" rx="7" />
-                      <rect x="10" y="24" width="38" height="34" rx="15" />
-                      <rect x="36" y="26" width="16" height="12" rx="6" />
-                      <rect
-                        x="5"
-                        y="30"
-                        width="14"
-                        height="22"
-                        rx="7"
-                        transform="rotate(-16 12 41)"
-                      />
+                    <g
+                      stroke="url(#hintGrad)"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      opacity="0.95"
+                    >
+                      <path d="M22 14a8 8 0 0 1-8 8" />
+                      <path d="M18 11v-1a2 2 0 0 0-2-2a2 2 0 0 0-2 2" />
+                      <path d="M14 10V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1" />
+                      <path d="M10 9.5V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v10" />
+                      <path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
                     </g>
                   </svg>
                   <motion.span
-                    className="absolute h-7 w-7 rounded-full"
+                    className="absolute h-6 w-6 rounded-full"
                     style={{
-                      left: 31,
-                      top: 3,
+                      left: 25,
+                      top: 6,
                       x: '-50%',
                       y: '-50%',
                       background:
                         'radial-gradient(circle, rgba(255,120,225,0.6) 0%, rgba(255,120,225,0) 70%)',
                     }}
-                    animate={{ scale: [0.35, 1.6], opacity: [0.9, 0] }}
+                    animate={{ scale: [0.35, 1.5], opacity: [0.9, 0] }}
                     transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
                   />
                 </motion.div>
