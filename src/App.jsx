@@ -772,16 +772,16 @@ function App() {
                     style={{ willChange: 'transform' }}
                     initial={{ x: 0, y: 0, rotate: -90 }}
                     animate={{
-                      x: [0, viewport.w * 0.36],
-                      y: [0, -viewport.h * 0.34],
-                      rotate: [-90, 0],
+                      x: [0, viewport.w * 0.36, 0],
+                      y: [0, -viewport.h * 0.34, 0],
+                      rotate: [-90, 0, -90],
                     }}
                     transition={{
-                      duration: 2.4,
+                      duration: 3.2,
+                      times: [0, 0.5, 1],
                       ease: 'easeInOut',
                       repeat: Infinity,
-                      repeatType: 'reverse',
-                      repeatDelay: 0.3,
+                      delay: 2,
                     }}
                   >
                     <svg width="76" height="76" viewBox="0 0 24 24" fill="none" aria-hidden>
