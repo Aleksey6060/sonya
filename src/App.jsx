@@ -750,9 +750,10 @@ function App() {
           </AnimatePresence>
 
           {/* Cursor-effect hint: a hand silhouette that "swipes" across the screen.
-              It only appears if nobody has moved the pointer yet, and only 3s
-              after everything is drawn. Finger starts pointing left at the
-              bottom-centre and sweeps to mid-right pointing up, then back. */}
+              It only appears if nobody has moved the pointer yet, and only after
+              everything is drawn. The finger starts pointing left at the
+              bottom-centre and sweeps to mid-right pointing up, then back.
+              Movement uses transforms (not left/top) so the pass stays smooth. */}
           <AnimatePresence>
             {visibleCount >= points.length && !pointerMoved && (
               <motion.div
@@ -761,58 +762,52 @@ function App() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0, transition: { duration: 0.3, delay: 0 } }}
-                transition={{ duration: 0.9, delay: 2, ease: 'easeOut' }}
+                transition={{ duration: 0.8, delay: 2, ease: 'easeOut' }}
               >
-                <motion.div
+                <div
                   className="absolute"
-                  style={{ x: '-50%', y: '-50%' }}
-                  initial={{ left: '50%', top: '84%', rotate: -90 }}
-                  animate={{ left: ['50%', '86%'], top: ['84%', '50%'], rotate: [-90, 0] }}
-                  transition={{
-                    duration: 4.4,
-                    ease: 'easeInOut',
-                    repeat: Infinity,
-                    repeatType: 'reverse',
-                    repeatDelay: 0.5,
-                    delay: 2,
-                  }}
+                  style={{ left: '50%', top: '84%', transform: 'translate(-50%, -50%)' }}
                 >
-                  <svg width="76" height="76" viewBox="0 0 24 24" fill="none" aria-hidden>
-                    <defs>
-                      <linearGradient id="hintGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#ff8ff1" />
-                        <stop offset="55%" stopColor="#ff4fd8" />
-                        <stop offset="100%" stopColor="#c77dff" />
-                      </linearGradient>
-                    </defs>
-                    <g
-                      stroke="url(#hintGrad)"
-                      strokeWidth="1.4"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      opacity="0.95"
-                    >
-                      <path d="M22 14a8 8 0 0 1-8 8" />
-                      <path d="M18 11v-1a2 2 0 0 0-2-2a2 2 0 0 0-2 2" />
-                      <path d="M14 10V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1" />
-                      <path d="M10 9.5V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v10" />
-                      <path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
-                    </g>
-                  </svg>
-                  <motion.span
-                    className="absolute h-6 w-6 rounded-full"
-                    style={{
-                      left: 19,
-                      top: 9,
-                      x: '-50%',
-                      y: '-50%',
-                      background:
-                        'radial-gradient(circle, rgba(255,120,225,0.6) 0%, rgba(255,120,225,0) 70%)',
+                  <motion.div
+                    style={{ willChange: 'transform' }}
+                    initial={{ x: 0, y: 0, rotate: -90 }}
+                    animate={{
+                      x: [0, viewport.w * 0.36],
+                      y: [0, -viewport.h * 0.34],
+                      rotate: [-90, 0],
                     }}
-                    animate={{ scale: [0.35, 1.5], opacity: [0.9, 0] }}
-                    transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
-                  />
-                </motion.div>
+                    transition={{
+                      duration: 2.4,
+                      ease: 'easeInOut',
+                      repeat: Infinity,
+                      repeatType: 'reverse',
+                      repeatDelay: 0.3,
+                    }}
+                  >
+                    <svg width="76" height="76" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <defs>
+                        <linearGradient id="hintGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#ff8ff1" />
+                          <stop offset="55%" stopColor="#ff4fd8" />
+                          <stop offset="100%" stopColor="#c77dff" />
+                        </linearGradient>
+                      </defs>
+                      <g
+                        stroke="url(#hintGrad)"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        opacity="0.95"
+                      >
+                        <path d="M22 14a8 8 0 0 1-8 8" />
+                        <path d="M18 11v-1a2 2 0 0 0-2-2a2 2 0 0 0-2 2" />
+                        <path d="M14 10V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1" />
+                        <path d="M10 9.5V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v10" />
+                        <path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+                      </g>
+                    </svg>
+                  </motion.div>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
